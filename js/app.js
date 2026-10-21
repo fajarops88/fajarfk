@@ -1586,6 +1586,43 @@ function loadAdminProfil() {
       '<button type="submit" class="btn btn-primary" id="profil-save-btn">' + iconFor('save') + ' Simpan Profil</button>' +
     '</form>';
 }
+/**
+ * Menyiapkan berkas untuk diunggah. Gambar besar (foto HP 3–10 MB) dikecilkan dulu di browser
+ * (sisi terpanjang maks. 2000 px, JPEG kualitas 0,85) sehingga unggahan jauh lebih cepat; hasilnya
+ * tetap tajam untuk tampilan web. PDF, gambar kecil (< 300 KB), atau gambar yang gagal diproses
+ * dikirim apa adanya. Hasil: Promise<{ b64, type, name }>.
+ */
+function prepareUpload_(file) {
+  function asIs() {
+    return fileToBase64(file).then(function (b64) { return { b64: b64, type: file.type, name: file.name }; });
+  }
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type) || file.size < 300 * 1024) return asIs();
+  return new Promise(function (resolve) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const MAX = 2000;
+        const sc = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * sc), h = Math.round(img.naturalHeight * sc);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // latar putih untuk PNG transparan
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (blob) {
+          if (!blob || blob.size >= file.size) { resolve(asIs()); return; } // tidak lebih kecil: pakai asli
+          fileToBase64(blob).then(function (b64) {
+            resolve({ b64: b64, type: 'image/jpeg', name: file.name.replace(/\.[^.]+$/, '') + '.jpg' });
+          }, function () { resolve(asIs()); });
+        }, 'image/jpeg', 0.85);
+      } catch (e) { resolve(asIs()); }
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); resolve(asIs()); };
+    img.src = url;
+  });
+}
 function fileToBase64(file) {
   return new Promise(function (resolve, reject) {
     const reader = new FileReader();
@@ -1607,18 +1644,24 @@ function submitAdminProfil(ev) {
   const cvFile = form.cv.files[0];
 
   const uploads = [];
-  if (fotoFile) uploads.push(fileToBase64(fotoFile).then(function (b64) {
+  if (fotoFile || cvFile) setBtnLoading(btn, true, 'Mengunggah berkas…', '');
+  if (fotoFile) uploads.push(prepareUpload_(fotoFile).then(function (up) {
     return new Promise(function (resolve, reject) {
-      Api.run.withSuccessHandler(function (r) { if (r.success) data.id_foto_drive = r.data.fileId; resolve(); }).withFailureHandler(reject).uploadFile(AppState.sessionToken, b64, fotoFile.type, fotoFile.name, 'Foto');
+      Api.run.withSuccessHandler(function (r) {
+        if (r && r.success) { data.id_foto_drive = r.data.fileId; resolve(); } else reject(new Error((r && r.message) || 'Gagal mengunggah foto.'));
+      }).withFailureHandler(reject).uploadFile(AppState.sessionToken, up.b64, up.type, up.name, 'Foto');
     });
   }));
-  if (cvFile) uploads.push(fileToBase64(cvFile).then(function (b64) {
+  if (cvFile) uploads.push(prepareUpload_(cvFile).then(function (up) {
     return new Promise(function (resolve, reject) {
-      Api.run.withSuccessHandler(function (r) { if (r.success) data.id_cv_drive = r.data.fileId; resolve(); }).withFailureHandler(reject).uploadFile(AppState.sessionToken, b64, cvFile.type, cvFile.name, 'CV');
+      Api.run.withSuccessHandler(function (r) {
+        if (r && r.success) { data.id_cv_drive = r.data.fileId; resolve(); } else reject(new Error((r && r.message) || 'Gagal mengunggah CV.'));
+      }).withFailureHandler(reject).uploadFile(AppState.sessionToken, up.b64, up.type, up.name, 'CV');
     });
   }));
 
   Promise.all(uploads).then(function () {
+    setBtnLoading(btn, true, 'Menyimpan…', '');
     Api.run
       .withSuccessHandler(function (res) {
         setBtnLoading(btn, false, '', iconFor('save') + ' Simpan Profil');
@@ -1626,7 +1669,7 @@ function submitAdminProfil(ev) {
       })
       .withFailureHandler(function (err) { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan Profil'); adminFail(err); })
       .saveProfil(AppState.sessionToken, data);
-  }).catch(function (err) { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan Profil'); toast('Gagal mengunggah berkas.', 'error'); });
+  }).catch(function (err) { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan Profil'); toast((err && err.message) || 'Gagal mengunggah berkas.', 'error'); });
   return false;
 }
 function refreshInitialDataSilently() {
@@ -1893,15 +1936,20 @@ function submitCrudForm(ev, key, id) {
     // berkas lama ini dihapus dari Drive setelah berkas baru berhasil diunggah —
     // dengan begitu Drive tidak menumpuk berkas lama yang sudah tidak dipakai.
     const oldFileId = form[c.key] ? form[c.key].value : '';
-    return fileToBase64(file).then(function (b64) {
+    setBtnLoading(btn, true, 'Mengunggah berkas…', '');
+    return prepareUpload_(file).then(function (up) {
       const subfolder = key === 'karya' ? 'Karya' : key === 'sertifikat' ? 'Sertifikat' : key === 'wawasan' ? 'Wawasan' : key === 'kinerja' ? 'Kinerja' : 'Foto';
       return new Promise(function (resolve, reject) {
-        Api.run.withSuccessHandler(function (r) { if (r.success) data[c.key] = r.data.fileId; resolve(); }).withFailureHandler(reject).uploadFile(AppState.sessionToken, b64, file.type, file.name, subfolder, oldFileId);
+        Api.run.withSuccessHandler(function (r) {
+          // Unggahan gagal harus menghentikan penyimpanan (dulu diam-diam lanjut tanpa gambar).
+          if (r && r.success) { data[c.key] = r.data.fileId; resolve(); } else reject(new Error((r && r.message) || 'Gagal mengunggah berkas.'));
+        }).withFailureHandler(reject).uploadFile(AppState.sessionToken, up.b64, up.type, up.name, subfolder, oldFileId);
       });
     });
   });
 
   Promise.all(fileUploads).then(function () {
+    setBtnLoading(btn, true, 'Menyimpan…', '');
     Api.run
       .withSuccessHandler(function (res) {
         setBtnLoading(btn, false, '', iconFor('save') + ' Simpan');
@@ -1909,7 +1957,7 @@ function submitCrudForm(ev, key, id) {
       })
       .withFailureHandler(function (err) { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan'); adminFail(err); })
       [cfg.save](AppState.sessionToken, data);
-  }).catch(function () { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan'); toast('Gagal mengunggah berkas.', 'error'); });
+  }).catch(function (err) { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan'); toast((err && err.message) || 'Gagal mengunggah berkas.', 'error'); });
   return false;
 }
 function deleteCrudItem(key, id) {
