@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Fajarfk Transportasi, Inovasi &amp; Digital</title>
+
+  <!-- Favicon (SVG inline, mengikuti bentuk ikon logo situs) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%230B2545'/%3E%3Cpath d='M12 12H36V18H19V22H32V28H19V36H12V12Z' fill='%23B8963E'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%23B8963E'/%3E%3Cpath d='M24 12L38 36' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-dasharray='2 4'/%3E%3C/svg%3E">
+
+  <!-- SEO & Open Graph (nilai awal statis; description & gambar diperbarui otomatis dari data Profil oleh js/app.js → updateSeoMeta()) -->
+  <meta name="description" content="Portal profesional Fajar Ferdian K — Transportasi, Inovasi &amp; Digital. Menampilkan pengalaman, karya, sertifikat, dan layanan profesional.">
+  <meta name="theme-color" content="#0B2545">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Fajarfk Transportasi, Inovasi &amp; Digital">
+  <meta property="og:description" content="Portal profesional Fajar Ferdian K — Transportasi, Inovasi &amp; Digital. Menampilkan pengalaman, karya, sertifikat, dan layanan profesional.">
+  <meta property="og:image" content="">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Fajarfk Transportasi, Inovasi &amp; Digital">
+  <meta name="twitter:description" content="Portal profesional Fajar Ferdian K — Transportasi, Inovasi &amp; Digital. Menampilkan pengalaman, karya, sertifikat, dan layanan profesional.">
+
+  <!-- Font (dipindah dari @import CSS agar dimuat lebih cepat) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ======================= LOADING OVERLAY ======================= -->
+  <div id="loading-overlay">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 60" width="195" height="45" fill="none" style="margin-bottom:4px;">
+      <rect width="48" height="48" x="6" y="6" rx="10" fill="#0B2545"/>
+      <path d="M18 18H42V24H25V28H38V34H25V42H18V18Z" fill="#B8963E"/>
+      <circle cx="38" cy="38" r="4" fill="#B8963E"/>
+      <path d="M30 18L44 42" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 4"/>
+      <text x="66" y="29" font-family="'Source Serif 4', Georgia, serif" font-size="16" font-weight="700" fill="#0B2545" letter-spacing="0.3">Fajar Ferdian K</text>
+      <text x="66" y="44" font-family="'Plus Jakarta Sans', sans-serif" font-size="9.5" font-weight="600" fill="#B8963E" letter-spacing="1.5">TRANSPORTASI &amp; INOVASI</text>
+    </svg>
+    <div class="spinner"></div>
+    <div class="t-label-md text-muted">Memuat Fajarfk Transportasi, Inovasi &amp; Digital…</div>
+  </div>
+
+  <div id="app-container">
+
+    <!-- ======================= TOP NAVIGATION ======================= -->
+    <header class="topnav">
+      <div class="wrap">
+        <div class="topnav-brand" onclick="navigateTo('beranda')" style="cursor:pointer;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 60" width="195" height="45" fill="none">
+            <rect width="48" height="48" x="6" y="6" rx="10" fill="#0B2545"/>
+            <path d="M18 18H42V24H25V28H38V34H25V42H18V18Z" fill="#B8963E"/>
+            <circle cx="38" cy="38" r="4" fill="#B8963E"/>
+            <path d="M30 18L44 42" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 4"/>
+            <text x="66" y="29" font-family="'Source Serif 4', Georgia, serif" font-size="16" font-weight="700" fill="#0B2545" letter-spacing="0.3">Fajar Ferdian K</text>
+            <text x="66" y="44" font-family="'Plus Jakarta Sans', sans-serif" font-size="9.5" font-weight="600" fill="#B8963E" letter-spacing="1.5">TRANSPORTASI &amp; INOVASI</text>
+          </svg>
+        </div>
+
+        <nav class="topnav-links" id="topnav-links">
+          <span class="topnav-link" data-page="beranda" onclick="navigateTo('beranda')">Beranda</span>
+          <div class="topnav-group" data-group="tentang">
+            <span class="topnav-link topnav-parent" data-group="tentang" onclick="toggleNavGroup(event,'tentang')">Tentang Saya <span class="material-symbols-outlined nav-caret">expand_more</span></span>
+            <div class="topnav-menu" id="navmenu-tentang">
+              <span class="topnav-sub" data-page="profil" onclick="navigateTo('profil')">Profil &amp; Riwayat</span>
+              <span class="topnav-sub" data-page="kinerja" onclick="navigateTo('kinerja')">Kinerja</span>
+              <span class="topnav-sub" data-page="sertifikat" onclick="navigateTo('sertifikat')">Sertifikat</span>
+              <span class="topnav-sub" data-page="agenda" onclick="navigateTo('agenda')">Agenda</span>
+              <span class="topnav-sub" data-page="kas" onclick="navigateTo('kas')">Bandhits</span>
+            </div>
+          </div>
+          <div class="topnav-group" data-group="karya">
+            <span class="topnav-link topnav-parent" data-group="karya" onclick="toggleNavGroup(event,'karya')">Karya &amp; Layanan <span class="material-symbols-outlined nav-caret">expand_more</span></span>
+            <div class="topnav-menu" id="navmenu-karya">
+              <span class="topnav-sub" data-page="karya" onclick="navigateTo('karya')">Karya</span>
+              <span class="topnav-sub" data-page="produk" onclick="navigateTo('produk')">Produk &amp; Layanan</span>
+            </div>
+          </div>
+          <span class="topnav-link" data-page="wawasan" onclick="navigateTo('wawasan')">Wawasan</span>
+          <span class="topnav-link" data-page="lacak" onclick="navigateTo('lacak')">Lacak Pesanan</span>
+          <span class="topnav-link" data-page="kontak" onclick="navigateTo('kontak')">Hubungi Kami</span>
+        </nav>
+
+        <div class="topnav-actions">
+          <button class="icon-btn" id="theme-toggle-btn" title="Ganti mode gelap/terang" onclick="toggleTheme()">
+            <span class="material-symbols-outlined" id="theme-toggle-icon">dark_mode</span>
+          </button>
+          <button class="icon-btn" title="Panel Admin" onclick="navigateTo('admin')">
+            <span class="material-symbols-outlined">admin_panel_settings</span>
+          </button>
+          <button class="icon-btn hamburger" title="Menu" onclick="openMobileDrawer()">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ======================= MOBILE DRAWER ======================= -->
+    <div class="mobile-drawer" id="mobile-drawer" onclick="if(event.target===this) closeMobileDrawer()">
+      <div class="mobile-drawer-panel">
+        <div class="flex justify-between items-center mb-lg">
+          <span class="t-title-lg text-navy">Menu</span>
+          <button class="icon-btn" onclick="closeMobileDrawer()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <span class="mobile-drawer-link" onclick="navigateTo('beranda')">Beranda</span>
+        <div class="drawer-group" id="drawer-group-tentang">
+          <span class="mobile-drawer-link drawer-parent" onclick="toggleDrawerGroup('tentang')">Tentang Saya <span class="material-symbols-outlined nav-caret">expand_more</span></span>
+          <div class="drawer-sub">
+            <span class="mobile-drawer-sublink" data-page="profil" onclick="navigateTo('profil')">Profil &amp; Riwayat</span>
+            <span class="mobile-drawer-sublink" data-page="kinerja" onclick="navigateTo('kinerja')">Kinerja</span>
+            <span class="mobile-drawer-sublink" data-page="sertifikat" onclick="navigateTo('sertifikat')">Sertifikat</span>
+            <span class="mobile-drawer-sublink" data-page="agenda" onclick="navigateTo('agenda')">Agenda</span>
+            <span class="mobile-drawer-sublink" data-page="kas" onclick="navigateTo('kas')">Bandhits</span>
+          </div>
+        </div>
+        <div class="drawer-group" id="drawer-group-karya">
+          <span class="mobile-drawer-link drawer-parent" onclick="toggleDrawerGroup('karya')">Karya &amp; Layanan <span class="material-symbols-outlined nav-caret">expand_more</span></span>
+          <div class="drawer-sub">
+            <span class="mobile-drawer-sublink" data-page="karya" onclick="navigateTo('karya')">Karya</span>
+            <span class="mobile-drawer-sublink" data-page="produk" onclick="navigateTo('produk')">Produk &amp; Layanan</span>
+          </div>
+        </div>
+        <span class="mobile-drawer-link" onclick="navigateTo('wawasan')">Wawasan</span>
+        <span class="mobile-drawer-link" onclick="navigateTo('lacak')">Lacak Pesanan</span>
+        <span class="mobile-drawer-link" onclick="navigateTo('kontak')">Hubungi Kami</span>
+        <span class="mobile-drawer-link" onclick="navigateTo('admin')">Panel Admin</span>
+      </div>
+    </div>
+
+    <!-- ======================= PAGE OUTLET (SPA) ======================= -->
+    <main id="page-outlet"></main>
+
+    <!-- ======================= FOOTER ======================= -->
+    <footer class="site-footer" id="site-footer">
+      <div class="wrap">
+        <div class="footer-grid">
+          <div>
+            <h4>Fajarfk Transportasi, Inovasi &amp; Digital</h4>
+            <p class="t-body-sm mt-lg" id="footer-sambutan" style="color:rgba(255,255,255,0.65);">Portal profesional Fajar Ferdian.</p>
+          </div>
+          <div>
+            <h4>Navigasi</h4>
+            <div class="flex flex-col gap-sm mt-lg">
+              <a onclick="navigateTo('profil')" style="cursor:pointer;" class="t-body-sm">Profil &amp; Riwayat</a>
+              <a onclick="navigateTo('karya')" style="cursor:pointer;" class="t-body-sm">Karya</a>
+              <a onclick="navigateTo('produk')" style="cursor:pointer;" class="t-body-sm">Produk &amp; Layanan</a>
+            </div>
+          </div>
+          <div>
+            <h4>Kontak &amp; Media Sosial</h4>
+            <div class="flex flex-col gap-sm mt-lg" id="footer-social"></div>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>&copy; <span id="footer-year"></span> Fajarfk Transportasi, Inovasi &amp; Digital.</span>
+          <span id="visitor-counter-footer"></span>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- ======================= TOMBOL WHATSAPP MENGAMBANG ======================= -->
+  <a id="wa-float-btn" class="wa-float-btn hidden" href="#" target="_blank" rel="noopener" title="Chat via WhatsApp" aria-label="Chat via WhatsApp">
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M16.004 3C9.377 3 4 8.373 4 15c0 2.286.638 4.428 1.744 6.253L4 29l7.94-1.702A11.94 11.94 0 0 0 16.004 27C22.63 27 28 21.627 28 15S22.63 3 16.004 3Zm6.98 16.963c-.297.836-1.47 1.53-2.41 1.735-.64.137-1.475.246-4.29-.92-3.6-1.49-5.918-5.14-6.1-5.377-.176-.238-1.463-1.948-1.463-3.716 0-1.768.925-2.638 1.253-3.001.328-.362.716-.453.955-.453.238 0 .478.003.686.013.22.01.516-.083.807.615.297.716 1.01 2.484 1.098 2.665.09.181.15.393.03.63-.12.238-.18.386-.357.594-.178.208-.374.464-.535.623-.178.178-.363.372-.156.73.208.357.923 1.522 1.983 2.465 1.362 1.215 2.51 1.591 2.868 1.77.357.178.566.148.774-.09.208-.238.892-1.04 1.13-1.397.238-.357.476-.298.804-.178.328.12 2.08.982 2.437 1.16.357.178.595.267.684.416.09.148.09.858-.207 1.693Z" fill="#fff"/>
+    </svg>
+  </a>
+
+  <div id="toast-container"></div>
+  <div class="modal-backdrop" id="modal-backdrop" onclick="if(event.target===this) closeModal()">
+    <div class="modal-panel" id="modal-panel"></div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
