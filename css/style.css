@@ -394,6 +394,12 @@ main#page-outlet { flex: 1 0 auto; }
   border: 3px solid rgba(184,150,62,0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.35);
 }
 @media (min-width: 1024px) { .hero-photo { width: 300px; height: 300px; } }
+.sambutan-card { display: flex; flex-direction: column; gap: var(--space-xl); align-items: center; max-width: 980px; margin: 0 auto; }
+.sambutan-foto { width: 200px; height: 200px; border-radius: var(--radius-lg); object-fit: cover; border: 1px solid var(--border-trim); flex: 0 0 auto; }
+.sambutan-isi { min-width: 0; width: 100%; }
+.sambutan-isi p { margin: 0 0 var(--space-lg); }
+.sambutan-ttd { margin-top: var(--space-xl); padding-top: var(--space-md); border-top: 1px solid var(--border-trim); }
+@media (min-width: 900px) { .sambutan-card { flex-direction: row; align-items: flex-start; } .sambutan-foto { width: 240px; height: 240px; } }
 .hero-eyebrow {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-full);
   background: rgba(184,150,62,0.16); border: 1px solid rgba(184,150,62,0.4); color: var(--gold);

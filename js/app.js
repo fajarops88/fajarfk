@@ -113,6 +113,7 @@ function navigateTo(page, params) {
 
   const renderers = {
     beranda: renderBeranda,
+    sambutan: renderSambutan,
     profil: renderProfil,
     karya: renderKarya,
     sertifikat: renderSertifikat,
@@ -137,7 +138,7 @@ function injectPage(html) {
 
 // Menu bertingkat: halaman -> kelompok menu
 const NAV_GROUPS = {
-  profil: 'tentang', kinerja: 'tentang', sertifikat: 'tentang', agenda: 'tentang', kas: 'tentang',
+  sambutan: 'tentang', profil: 'tentang', kinerja: 'tentang', sertifikat: 'tentang', agenda: 'tentang', kas: 'tentang',
   karya: 'karya', produk: 'karya'
 };
 
@@ -536,6 +537,41 @@ function submitSurveiForm(ev) {
 
 function emptyStateHtml(icon, msg) {
   return '<div class="empty-state">' + iconFor(icon) + '<p class="mt-lg">' + escapeHtml(msg) + '</p></div>';
+}
+
+// ============================================================================
+// HALAMAN: SAMBUTAN (isi diatur admin: Pengaturan -> Halaman Sambutan)
+// ============================================================================
+const SAMBUTAN_DEFAULT_ = 'Assalamualaikum warahmatullahi wabarakatuh, salam sejahtera bagi kita semua.\n\n' +
+  'Selamat datang di situs saya. Di sini Anda dapat mengenal perjalanan profesional, karya, dan layanan yang saya tekuni di bidang transportasi, inovasi, dan digital.\n\n' +
+  'Semoga situs ini bermanfaat, dan saya terbuka untuk berdiskusi maupun berkolaborasi. Terima kasih atas kunjungan Anda.';
+
+function renderSambutan() {
+  const d = AppState.data || {};
+  const p = d.profil || {};
+  const s = d.pengaturan || {};
+  const judul = agendaText_(s.sambutan_judul).trim() || 'Sambutan';
+  const isi = agendaText_(s.sambutan_isi).trim() || SAMBUTAN_DEFAULT_;
+  const paragraf = isi.split(/\n\s*\n/).map(function (t) { return t.trim(); }).filter(Boolean);
+  const nama = agendaText_(p.nama);
+  const jabatan = agendaText_(s.sambutan_jabatan).trim() || agendaText_(p.tagline);
+
+  return '' +
+  '<section class="section-tight" style="background:var(--surface-crisp);border-bottom:1px solid var(--border-trim);">' +
+    '<div class="wrap"><h1 class="t-headline-lg" style="margin:0;">' + escapeHtml(judul) + '</h1></div>' +
+  '</section>' +
+  '<section class="section"><div class="wrap">' +
+    '<article class="sambutan-card card card-accent-gold">' +
+      (p.url_foto ? '<img class="sambutan-foto" src="' + escapeHtml(p.url_foto) + '" alt="Foto ' + escapeHtml(nama || 'profil') + '">' : '') +
+      '<div class="sambutan-isi">' +
+        paragraf.map(function (t) { return '<p class="t-body-lg">' + nl2br(t) + '</p>'; }).join('') +
+        '<div class="sambutan-ttd">' +
+          '<div class="t-title-lg text-navy">' + escapeHtml(nama || '-') + '</div>' +
+          (jabatan ? '<div class="t-body-sm text-muted">' + escapeHtml(jabatan) + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+    '</article>' +
+  '</div></section>';
 }
 
 // ============================================================================
@@ -2001,6 +2037,10 @@ function loadAdminPengaturan() {
     '<form id="pengaturan-form" onsubmit="return submitAdminPengaturan(event)" class="card mb-lg">' +
       '<div class="field"><label>Nama Situs</label><input type="text" name="nama_situs" value="' + escapeHtml(p.nama_situs || '') + '"></div>' +
       '<div class="field"><label>Kalimat Sambutan</label><textarea name="sambutan">' + escapeHtml(p.sambutan || '') + '</textarea></div>' +
+      '<div class="field"><label>Judul Halaman Sambutan</label><input type="text" name="sambutan_judul" placeholder="Sambutan" value="' + escapeHtml(agendaText_(p.sambutan_judul)) + '"></div>' +
+      '<div class="field"><label>Isi Sambutan (kosongkan satu baris untuk pindah paragraf)</label><textarea name="sambutan_isi" rows="10">' + escapeHtml(agendaText_(p.sambutan_isi)) + '</textarea>' +
+        '<div class="t-body-sm text-muted">Tampil di menu Tentang Saya &rarr; Sambutan, bersama foto dan nama dari Profil. Kosongkan untuk memakai teks bawaan.</div></div>' +
+      '<div class="field"><label>Jabatan di Bawah Nama (opsional)</label><input type="text" name="sambutan_jabatan" placeholder="Kosongkan untuk memakai tagline profil" value="' + escapeHtml(agendaText_(p.sambutan_jabatan)) + '"></div>' +
       '<div class="field"><label>Email Notifikasi Admin</label><input type="email" name="email_notifikasi" value="' + escapeHtml(p.email_notifikasi || '') + '"></div>' +
       '<div class="field"><label>LinkedIn</label><input type="text" name="sosial_linkedin" value="' + escapeHtml(p.sosial_linkedin || '') + '"></div>' +
       '<div class="field"><label>GitHub</label><input type="text" name="sosial_github" value="' + escapeHtml(p.sosial_github || '') + '"></div>' +
@@ -2033,6 +2073,7 @@ function submitAdminPengaturan(ev) {
   const data = {
     nama_situs: form.nama_situs.value, sambutan: form.sambutan.value, email_notifikasi: form.email_notifikasi.value,
     sosial_linkedin: form.sosial_linkedin.value, sosial_github: form.sosial_github.value, sosial_lainnya: form.sosial_lainnya.value,
+    sambutan_judul: form.sambutan_judul.value, sambutan_isi: form.sambutan_isi.value, sambutan_jabatan: form.sambutan_jabatan.value,
     nomor_whatsapp: form.nomor_whatsapp.value,
     url_aplikasi_kas: form.url_aplikasi_kas.value,
     notifikasi_status_pesanan: form.notifikasi_status_pesanan.value
