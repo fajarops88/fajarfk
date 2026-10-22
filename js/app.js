@@ -172,6 +172,30 @@ function toggleDrawerGroup(name) {
 document.addEventListener('click', function () { closeNavGroups_(); });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeNavGroups_(); });
 
+// Hubungkan <label> dengan kolom isiannya secara otomatis (aksesibilitas: pembaca layar & klik label).
+let _fldSeq = 0;
+function linkFieldLabels_() {
+  document.querySelectorAll('.field, .honeypot-field').forEach(function (f) {
+    const lab = f.querySelector('label');
+    const inp = f.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select');
+    if (!lab || !inp || lab.htmlFor) return;
+    if (!inp.id) inp.id = 'fld' + (++_fldSeq);
+    lab.htmlFor = inp.id;
+  });
+}
+(function watchFieldLabels_() {
+  let queued = false;
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; linkFieldLabels_(); });
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+    schedule();
+  });
+})();
+
 function openMobileDrawer() {
   const grp = NAV_GROUPS[AppState.currentPage] || '';
   ['tentang', 'karya'].forEach(function (n) {
