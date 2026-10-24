@@ -34,21 +34,65 @@ document.addEventListener('DOMContentLoaded', function () {
   initTheme();
   initVisitorToken();
 
+  // Tampilkan data terakhir dari browser seketika (jika ada), lalu perbarui diam-diam dari server.
+  const cached = bacaCacheAwal_();
+  if (cached) { AppState.data = cached; AppState.dariCache = true; tampilkanAwal_(); }
+
   Api.run
     .withSuccessHandler(onInitialDataLoaded)
     .withFailureHandler(onInitialDataFailed)
     .getInitialData();
 });
 
-function onInitialDataLoaded(res) {
-  if (!res || !res.success) { onInitialDataFailed({ message: (res && res.message) || 'Gagal memuat data.' }); return; }
-  AppState.data = res.data;
+const CACHE_AWAL_KEY = 'fajarfk_init_v1';
+const CACHE_AWAL_MAKS_MS = 7 * 24 * 3600 * 1000;
+function bacaCacheAwal_() {
+  try {
+    const raw = localStorage.getItem(CACHE_AWAL_KEY); if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !o.d || !o.t || Date.now() - o.t > CACHE_AWAL_MAKS_MS) return null;
+    return o.d;
+  } catch (e) { return null; }
+}
+function simpanCacheAwal_(data) {
+  try { localStorage.setItem(CACHE_AWAL_KEY, JSON.stringify({ t: Date.now(), d: data })); } catch (e) { /* penuh / diblokir: abaikan */ }
+}
+
+function tampilkanAwal_() {
   renderFooterInfo();
   updateSeoMeta();
   document.getElementById('loading-overlay').classList.add('hidden');
   navigateTo('beranda');
 
   Api.run.recordVisit(AppState.visitorToken);
+}
+
+function onInitialDataLoaded(res) {
+  if (!res || !res.success) {
+    if (AppState.dariCache) return; // tetap pakai tampilan dari cache
+    onInitialDataFailed({ message: (res && res.message) || 'Gagal memuat data.' }); return;
+  }
+  simpanCacheAwal_(res.data);
+  if (AppState.dariCache) { segarkanDariServer_(res.data); return; }
+  AppState.data = res.data;
+  tampilkanAwal_();
+}
+
+/** Data segar tiba setelah halaman sudah tampil dari cache: ganti data, render ulang hanya bila berubah dan aman. */
+function segarkanDariServer_(baru) {
+  const berubah = JSON.stringify(baru) !== JSON.stringify(AppState.data);
+  AppState.data = baru; AppState.dariCache = false;
+  renderFooterInfo();
+  if (typeof updateSeoMeta === 'function') updateSeoMeta();
+  if (typeof updateWaFloatButton === 'function') updateWaFloatButton();
+  const aman = ['admin', 'kontak', 'lacak'].indexOf(AppState.currentPage) === -1 && !AppState.sessionToken;
+  const el = document.activeElement;
+  const mengetik = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+  if (berubah && aman && !mengetik) {
+    const y = window.scrollY;
+    navigateTo(AppState.currentPage, AppState.currentParams);
+    window.scrollTo({ top: y, behavior: 'instant' });
+  }
 }
 
 /** Perbarui meta description / Open Graph dari data Profil (dijalankan di browser; mesin pencari modern ikut membaca hasilnya). */
@@ -69,6 +113,7 @@ function updateSeoMeta() {
 }
 
 function onInitialDataFailed(err) {
+  if (AppState.dariCache) return; // sudah tampil dari cache; abaikan kegagalan jaringan
   document.getElementById('loading-overlay').classList.add('hidden');
   document.getElementById('page-outlet').innerHTML =
     '<div class="wrap section text-center"><span class="material-symbols-outlined" style="font-size:48px;color:var(--color-error)">error</span>' +
