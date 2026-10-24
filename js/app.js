@@ -1099,6 +1099,7 @@ function submitRequestForm(ev) {
     .withSuccessHandler(function (res) {
       setBtnLoading(btn, false, '', iconFor('send') + ' Kirim Permintaan');
       if (res.success) {
+        drainNotif_(res);
         closeModal();
         toast('Permintaan terkirim. Kode pesanan: ' + res.data.kode, 'success');
         navigateTo('lacak', { kode: res.data.kode });
@@ -1232,7 +1233,7 @@ function submitKontakForm(ev) {
   Api.run
     .withSuccessHandler(function (res) {
       setBtnLoading(btn, false, '', iconFor('send') + ' Kirim Pesan');
-      if (res.success) { form.reset(); toast(res.message, 'success'); }
+      if (res.success) { drainNotif_(res); form.reset(); toast(res.message, 'success'); }
       else { toast(res.message || 'Gagal mengirim pesan.', 'error'); }
     })
     .withFailureHandler(function (err) {
@@ -1341,6 +1342,9 @@ const ADMIN_TABS = [
   { key: 'kinerja', label: 'Kinerja', icon: 'event_note' },
   { key: 'agenda', label: 'Agenda', icon: 'calendar_month' },
   { key: 'produk', label: 'Produk', icon: 'design_services' },
+  { key: 'notifikasi', label: 'Notifikasi', icon: 'campaign' },
+  { key: 'crm', label: 'Kontak CRM', icon: 'contacts' },
+  { key: 'import', label: 'Impor Data', icon: 'upload_file' },
   { key: 'pengaturan', label: 'Pengaturan', icon: 'settings' }
 ];
 
@@ -1392,6 +1396,9 @@ function loadAdminTab(tab) {
     kinerja: function () { loadAdminCrud('kinerja'); },
     agenda: function () { loadAdminCrud('agenda'); },
     produk: function () { loadAdminCrud('produk'); },
+    notifikasi: loadAdminNotif,
+    crm: loadAdminCrm,
+    import: loadAdminImport,
     pengaturan: loadAdminPengaturan
   };
   (loaders[tab] || loadAdminDashboard)();
@@ -1520,7 +1527,7 @@ function submitUpdatePesanan(ev, kode) {
   ev.preventDefault();
   const form = ev.target;
   Api.run
-    .withSuccessHandler(function (res) { closeModal(); if (res.success) { toast(res.message, 'success'); loadAdminPesanan(); } else toast(res.message, 'error'); })
+    .withSuccessHandler(function (res) { closeModal(); if (res.success) { drainNotif_(res); toast(res.message, 'success'); loadAdminPesanan(); } else toast(res.message, 'error'); })
     .withFailureHandler(adminFail)
     .updateStatusPesanan(AppState.sessionToken, kode, form.status.value, form.catatan.value);
   return false;
@@ -2031,7 +2038,9 @@ function deleteCrudItem(key, id) {
 
 // --------- Pengaturan ---------
 function loadAdminPengaturan() {
-  const p = AppState.data.pengaturan || {};
+  gsr('getPengaturanAdmin', [], function (res) { renderAdminPengaturan_(res.success ? res.data : (AppState.data.pengaturan || {})); });
+}
+function renderAdminPengaturan_(p) {
   document.getElementById('admin-tab-content').innerHTML =
     '<h2 class="t-headline-sm">Pengaturan Situs</h2>' +
     '<form id="pengaturan-form" onsubmit="return submitAdminPengaturan(event)" class="card mb-lg">' +
@@ -2060,7 +2069,7 @@ function loadAdminPengaturan() {
       '<h3 class="t-title-md text-navy mb-lg">Ganti Kata Sandi Admin</h3>' +
       '<form onsubmit="return submitChangePassword(event)">' +
         '<div class="field"><label>Sandi Lama</label><input type="password" name="lama" required autocomplete="current-password"></div>' +
-        '<div class="field"><label>Sandi Baru (minimal 8 karakter)</label><input type="password" name="baru" required minlength="8" autocomplete="new-password"></div>' +
+        '<div class="field"><label>Sandi Baru (min. 8 karakter, huruf dan angka)</label><input type="password" name="baru" required minlength="8" autocomplete="new-password"></div>' +
         '<button type="submit" class="btn btn-secondary">' + iconFor('lock_reset') + ' Ganti Sandi</button>' +
       '</form>' +
     '</div>';
@@ -2091,8 +2100,370 @@ function submitChangePassword(ev) {
   ev.preventDefault();
   const form = ev.target;
   Api.run
-    .withSuccessHandler(function (res) { if (res.success) { toast(res.message, 'success'); form.reset(); } else toast(res.message, 'error'); })
+    .withSuccessHandler(function (res) { if (res.success) { if (res.data && res.data.token) AppState.sessionToken = res.data.token; toast(res.message, 'success'); form.reset(); } else toast(res.message, 'error'); })
     .withFailureHandler(adminFail)
     .changeAdminPassword(AppState.sessionToken, form.lama.value, form.baru.value);
   return false;
+}
+
+// ============================================================================
+// ADMIN: NOTIFIKASI WA/EMAIL, CRM KONTAK, IMPOR DATA
+// ============================================================================
+function gsr(fn, args, ok, fail) {
+  const r = Api.run.withSuccessHandler(ok).withFailureHandler(fail || adminFail);
+  return r[fn].apply(r, [AppState.sessionToken].concat(args || []));
+}
+function drainNotif_(res) {
+  if (res && res.nq > 0) { try { Api.run.withSuccessHandler(function () {}).withFailureHandler(function () {}).drainNotif(); } catch (e) {} }
+}
+function adminEl_() { return document.getElementById('admin-tab-content'); }
+function opt_(val, label, cur) { return '<option value="' + escapeHtml(val) + '"' + (String(val) === String(cur) ? ' selected' : '') + '>' + escapeHtml(label) + '</option>'; }
+function dl_(nama, teks, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + teks], { type: mime || 'text/csv;charset=utf-8' }));
+  a.download = nama; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function csvEsc_(v) { v = String(v == null ? '' : v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function parseCsv_(txt) {
+  txt = String(txt || '').replace(/^﻿/, '');
+  const first = txt.split('\n')[0] || '', sep = (first.split(';').length > first.split(',').length) ? ';' : ',';
+  const out = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (q) { if (c === '"') { if (txt[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === sep) { row.push(cur); cur = ''; }
+    else if (c === '\n') { row.push(cur); out.push(row); row = []; cur = ''; }
+    else if (c !== '\r') cur += c;
+  }
+  if (cur !== '' || row.length) { row.push(cur); out.push(row); }
+  return out.filter(function (r) { return r.some(function (x) { return String(x).trim() !== ''; }); });
+}
+function badgeKirim_(s) {
+  const m = { Terkirim: 'Selesai', Gagal: 'Dibatalkan', Antri: 'Diterima', Proses: 'Diproses', Batal: 'Dibatalkan', Selesai: 'Selesai', Berjalan: 'Diproses', Dihentikan: 'Dibatalkan' };
+  return '<span class="badge badge-' + (m[s] || 'Baru') + '">' + escapeHtml(s) + '</span>';
+}
+function progress_(persen) { return '<div class="prog"><div class="prog-bar" style="width:' + (persen || 0) + '%"></div></div>'; }
+
+// ---------------- NOTIFIKASI ----------------
+AppState.notifTab = 'blast';
+function loadAdminNotif() {
+  const t = AppState.notifTab;
+  const sub = [['blast', 'Blast WhatsApp'], ['antrean', 'Antrean & Riwayat'], ['konfig', 'Konfigurasi']].map(function (x) {
+    return '<button class="btn ' + (t === x[0] ? 'btn-primary' : 'btn-secondary') + ' btn-sm" onclick="AppState.notifTab=\'' + x[0] + '\';loadAdminNotif()">' + x[1] + '</button>';
+  }).join(' ');
+  adminEl_().innerHTML = '<h2 class="t-headline-sm">Notifikasi</h2><div class="subtabs mb-lg">' + sub + '</div><div id="notif-body">' + iconFor('hourglass_empty') + ' Memuat…</div>';
+  ({ blast: loadNotifBlast_, antrean: loadNotifAntrean_, konfig: loadNotifKonfig_ })[t]();
+}
+
+function loadNotifKonfig_() {
+  gsr('getKonfigNotif', [], function (res) {
+    if (!res.success) return toast(res.message, 'error');
+    const c = res.data;
+    if (!c.appUrl) c.appUrl = location.origin + location.pathname;
+    const mat = Object.keys(c.matriks).map(function (k) {
+      const m = c.matriks[k];
+      return '<div class="card mb-lg" data-ev="' + k + '"><div class="t-title-md">' + escapeHtml(m.label) + '</div>' +
+        '<label class="chk"><input type="checkbox" name="wa"' + (m.wa ? ' checked' : '') + '> WhatsApp</label> ' +
+        '<label class="chk"><input type="checkbox" name="email"' + (m.email ? ' checked' : '') + '> Email</label>' +
+        '<div class="field"><label>Subjek email</label><input type="text" name="subjek" value="' + escapeHtml(m.subjek) + '"></div>' +
+        '<div class="field"><label>Isi pesan</label><textarea name="pesan" rows="4">' + escapeHtml(m.pesan) + '</textarea></div>' +
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="resetTemplat_(\'' + k + '\')" data-sd="' + escapeHtml(m.subjekDefault) + '" data-pd="' + escapeHtml(m.pesanDefault) + '">Kembalikan bawaan</button></div>';
+    }).join('');
+    document.getElementById('notif-body').innerHTML =
+      '<div class="card mb-lg"><h3 class="t-title-md">Token Fonnte (WhatsApp)</h3>' +
+        '<div class="t-body-sm text-muted">Disimpan di Script Properties — tidak pernah ditulis ke Sheet atau dikirim ke halaman ini.</div>' +
+        '<div class="field"><label>Token ' + (c.tokenAda ? '(tersimpan: ' + escapeHtml(c.tokenSamar) + ')' : '(belum diisi)') + '</label><input type="password" id="fonnte-token" autocomplete="off" placeholder="' + (c.tokenAda ? 'Kosongkan jika tidak diganti' : 'Tempel token dari fonnte.com') + '"></div>' +
+        '<button class="btn btn-secondary" onclick="simpanTokenFonnte_()">' + iconFor('key') + ' Simpan Token</button> ' +
+        '<button class="btn btn-secondary" onclick="cekPerangkat_()">' + iconFor('smartphone') + ' Cek Perangkat</button>' +
+      '</div>' +
+      '<form id="konfig-form" class="card mb-lg" onsubmit="return simpanKonfig_(event)">' +
+        '<h3 class="t-title-md">Saklar & Pengaturan</h3>' +
+        '<div class="field"><label>Notifikasi WhatsApp</label><select name="waAktif">' + opt_('0', 'Mati', c.waAktif ? '1' : '0').replace('value="0"', 'value="0"') + opt_('1', 'Hidup (butuh token)', c.waAktif ? '1' : '0') + '</select></div>' +
+        '<div class="field"><label>Notifikasi Email</label><select name="emailAktif">' + opt_('1', 'Hidup', c.emailAktif ? '1' : '0') + opt_('0', 'Mati', c.emailAktif ? '1' : '0') + '</select></div>' +
+        '<div class="field"><label>Nomor WA admin (penerima notifikasi admin)</label><input type="text" name="waAdmin" value="' + escapeHtml(c.waAdmin) + '" placeholder="081234567890"></div>' +
+        '<div class="field"><label>Ukuran batch blast</label><select name="batchDefault">' + [10, 20, 50].map(function (n) { return opt_(n, n + ' pesan / batch', c.batchDefault); }).join('') + '</select></div>' +
+        '<div class="field"><label>Jeda antar pesan (detik, mis. 5 atau 3-8)</label><input type="text" name="jeda" value="' + escapeHtml(c.jeda) + '"></div>' +
+        '<div class="field"><label>Deteksi nomor WA otomatis</label><select name="deteksiOtomatis">' + opt_('1', 'Ya', c.deteksiOtomatis ? '1' : '0') + opt_('0', 'Tidak', c.deteksiOtomatis ? '1' : '0') + '</select></div>' +
+        '<div class="field"><label>Nama pengirim email</label><input type="text" name="namaPengirim" value="' + escapeHtml(c.namaPengirim) + '"></div>' +
+        '<div class="field"><label>URL situs (dipakai di tautan notifikasi)</label><input type="text" name="appUrl" value="' + escapeHtml(c.appUrl) + '"></div>' +
+        '<div class="t-body-sm text-muted mb-lg">Placeholder: {nama} {situs} {link} {kode} {status} {catatan} {subjek} {isi} {email} {produk} {kontak} {kebutuhan}</div>' +
+        mat +
+        '<button type="submit" class="btn btn-primary" id="konfig-save">' + iconFor('save') + ' Simpan Konfigurasi</button>' +
+      '</form>' +
+      '<div class="card"><h3 class="t-title-md">Uji Kirim</h3>' +
+        '<div class="field"><label>Nomor WA tujuan</label><input type="text" id="tes-wa" placeholder="081234567890"></div>' +
+        '<button class="btn btn-secondary" onclick="tesKirim_(\'testWA\',\'tes-wa\')">' + iconFor('chat') + ' Tes WhatsApp</button>' +
+        '<div class="field mt-lg"><label>Email tujuan</label><input type="email" id="tes-email" placeholder="nama@email.com"></div>' +
+        '<button class="btn btn-secondary" onclick="tesKirim_(\'testEmail\',\'tes-email\')">' + iconFor('mail') + ' Tes Email</button>' +
+      '</div>';
+  });
+}
+function resetTemplat_(k) {
+  const box = document.querySelector('[data-ev="' + k + '"]'), b = box.querySelector('button[data-sd]');
+  box.querySelector('[name=subjek]').value = b.getAttribute('data-sd');
+  box.querySelector('[name=pesan]').value = b.getAttribute('data-pd');
+}
+function simpanTokenFonnte_() {
+  const v = document.getElementById('fonnte-token').value.trim();
+  if (!v) return toast('Tempel token dulu.', 'error');
+  gsr('simpanRahasia', ['FONNTE_TOKEN', v], function (res) { toast(res.success ? 'Token tersimpan.' : res.message, res.success ? 'success' : 'error'); if (res.success) loadNotifKonfig_(); });
+}
+function cekPerangkat_() {
+  gsr('cekPerangkatWA', [], function (res) { toast(res.success ? 'Perangkat: ' + (res.data.status || 'OK') + (res.data.nama ? ' — ' + res.data.nama : '') : res.message, res.success ? 'success' : 'error'); });
+}
+function simpanKonfig_(ev) {
+  ev.preventDefault();
+  const f = ev.target, matriks = {};
+  f.querySelectorAll('[data-ev]').forEach(function (b) {
+    matriks[b.getAttribute('data-ev')] = { wa: b.querySelector('[name=wa]').checked, email: b.querySelector('[name=email]').checked, subjek: b.querySelector('[name=subjek]').value, pesan: b.querySelector('[name=pesan]').value };
+  });
+  const cfg = { waAktif: f.waAktif.value === '1', emailAktif: f.emailAktif.value === '1', waAdmin: f.waAdmin.value, batchDefault: Number(f.batchDefault.value), jeda: f.jeda.value,
+    deteksiOtomatis: f.deteksiOtomatis.value === '1', namaPengirim: f.namaPengirim.value, appUrl: f.appUrl.value, matriks: matriks };
+  const btn = document.getElementById('konfig-save'); setBtnLoading(btn, true, 'Menyimpan…', '');
+  gsr('simpanKonfigNotif', [cfg], function (res) {
+    setBtnLoading(btn, false, '', iconFor('save') + ' Simpan Konfigurasi');
+    toast(res.success ? 'Konfigurasi tersimpan.' : res.message, res.success ? 'success' : 'error');
+  }, function (e) { setBtnLoading(btn, false, '', iconFor('save') + ' Simpan Konfigurasi'); adminFail(e); });
+  return false;
+}
+function tesKirim_(fn, idInput) {
+  const v = document.getElementById(idInput).value.trim();
+  if (!v) return toast('Isi tujuan dulu.', 'error');
+  gsr(fn, [v], function (res) { toast(res.message || (res.success ? 'Terkirim.' : 'Gagal.'), res.success ? 'success' : 'error'); });
+}
+
+function loadNotifAntrean_(filter) {
+  filter = filter || {};
+  gsr('listAntrianNotif', [filter], function (res) {
+    if (!res.success) return toast(res.message, 'error');
+    const r = res.data.ringkas;
+    document.getElementById('notif-body').innerHTML =
+      '<div class="kpi-grid">' + ['Antri', 'Terkirim', 'Gagal', 'Batal'].map(function (k) { return '<div class="kpi-card"><div class="num">' + (r[k] || 0) + '</div><div class="lbl">' + k + '</div></div>'; }).join('') + '</div>' +
+      '<div class="toolbar mb-lg">' +
+        '<select id="ant-status" onchange="filterAntrean_()">' + opt_('', 'Semua status', filter.status) + ['Antri', 'Proses', 'Terkirim', 'Gagal', 'Batal'].map(function (s) { return opt_(s, s, filter.status); }).join('') + '</select> ' +
+        '<select id="ant-kanal" onchange="filterAntrean_()">' + opt_('', 'Semua kanal', filter.kanal) + opt_('WA', 'WhatsApp', filter.kanal) + opt_('EMAIL', 'Email', filter.kanal) + '</select> ' +
+        '<button class="btn btn-secondary btn-sm" onclick="gsr(\'prosesNotifSekarang\',[],function(r){toast(r.message,\'success\');filterAntrean_()})">' + iconFor('play_arrow') + ' Proses Sekarang</button> ' +
+        '<button class="btn btn-secondary btn-sm" onclick="gsr(\'ulangiNotifGagal\',[],function(r){toast(r.message,r.success?\'success\':\'error\');loadNotifAntrean_()})">' + iconFor('replay') + ' Ulangi yang Gagal</button> ' +
+        '<button class="btn btn-secondary btn-sm" onclick="loadNotifAntrean_()">' + iconFor('refresh') + '</button></div>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Waktu</th><th>Kanal</th><th>Tujuan</th><th>Kejadian</th><th>Status</th><th>Coba</th><th>Respons</th></tr></thead><tbody>' +
+      (res.data.rows.length ? res.data.rows.map(function (a) {
+        return '<tr><td>' + escapeHtml(String(a.dibuat || '').slice(0, 16)) + '</td><td>' + escapeHtml(a.kanal) + '</td><td>' + escapeHtml(a.nama_penerima || '') + '<div class="t-body-sm text-muted">' + escapeHtml(a.tujuan) + '</div></td><td>' + escapeHtml(a.event || '') + '</td><td>' + badgeKirim_(a.status) + '</td><td>' + escapeHtml(a.percobaan) + '</td><td class="t-body-sm" style="max-width:220px;">' + escapeHtml(String(a.respon || '').slice(0, 120)) + '</td></tr>';
+      }).join('') : '<tr><td colspan="7">' + emptyStateHtml('notifications', 'Antrean kosong.') + '</td></tr>') + '</tbody></table></div>';
+  });
+}
+function filterAntrean_() { loadNotifAntrean_({ status: document.getElementById('ant-status').value, kanal: document.getElementById('ant-kanal').value }); }
+
+AppState.blastAud = null;
+function loadNotifBlast_() {
+  gsr('waAudience', [{}], function (res) {
+    if (!res.success) return toast(res.message, 'error');
+    const seg = {}; res.data.rows.forEach(function (r) { seg[r.segmen] = 1; });
+    document.getElementById('notif-body').innerHTML =
+      '<div class="card mb-lg"><h3 class="t-title-md">Blast Baru</h3>' +
+        '<div class="t-body-sm text-muted mb-lg">Penerima diambil dari Kontak CRM. Opt-out, nomor tidak valid, dan nomor ganda otomatis dibuang. Pengiriman per batch dengan jeda agar nomor aman.</div>' +
+        '<div class="toolbar"><select id="b-segmen" onchange="aud_()">' + opt_('', 'Semua segmen', '') + Object.keys(seg).map(function (s) { return opt_(s, s, ''); }).join('') + '</select> ' +
+        '<select id="b-status" onchange="aud_()">' + opt_('', 'Semua status WA', '') + opt_('Terdaftar', 'Terdaftar di WA', '') + opt_('Tidak Terdaftar', 'Tidak terdaftar', '') + '</select> ' +
+        '<input type="text" id="b-tag" placeholder="Tag (opsional)" onchange="aud_()"></div>' +
+        '<div id="b-ring" class="t-body-sm mb-lg"></div>' +
+        '<form onsubmit="return buatBlast_(event)" id="blast-form">' +
+          '<div class="field"><label>Judul (internal)</label><input type="text" name="judul" required maxlength="80"></div>' +
+          '<div class="field"><label>Isi pesan (maks 1000 karakter) — gunakan {nama} dan {situs}</label><textarea name="pesan" rows="5" maxlength="1000" required></textarea></div>' +
+          '<div class="field"><label>Batch</label><select name="batch">' + opt_(10, '10 / batch', 10) + opt_(20, '20 / batch', 20) + opt_(50, '50 / batch', 50) + '</select></div>' +
+          '<div class="field"><label>Jeda (detik atau rentang, mis. 3-8)</label><input type="text" name="jeda" value="5"></div>' +
+          '<button type="submit" class="btn btn-primary" id="blast-btn">' + iconFor('campaign') + ' Buat Blast</button> ' +
+          '<button type="button" class="btn btn-secondary" onclick="cekNomorAud_()">' + iconFor('verified') + ' Cek Nomor WA (50 pertama belum dicek)</button>' +
+        '</form></div>' +
+      '<h3 class="t-title-md">Riwayat Blast</h3><div id="blast-list">Memuat…</div>';
+    aud_(res.data);
+    muatBlastList_();
+  });
+}
+function filterAud_() { return { segmen: document.getElementById('b-segmen').value, statusWA: document.getElementById('b-status').value, tag: document.getElementById('b-tag').value.trim() }; }
+function aud_(pre) {
+  const show = function (d) {
+    AppState.blastAud = d; const r = d.ringkas;
+    document.getElementById('b-ring').innerHTML = 'Total kontak: <b>' + r.total + '</b> · bisa dikirim: <b>' + d.rows.filter(function (x) { return x.valid && !x.opt_out && !x.ganda && x.status_wa !== 'Tidak Terdaftar'; }).length + '</b> · tidak valid: ' + r.tidakValid + ' · ganda: ' + r.ganda + ' · opt-out: ' + r.optOut + ' · terdaftar WA: ' + r.terdaftarWA;
+  };
+  if (pre && pre.rows) return show(pre);
+  gsr('waAudience', [filterAud_()], function (res) { if (res.success) show(res.data); });
+}
+function cekNomorAud_() {
+  const d = AppState.blastAud; if (!d) return;
+  const n = d.rows.filter(function (r) { return r.valid && !r.status_wa; }).slice(0, 50).map(function (r) { return r.hp; });
+  if (!n.length) return toast('Semua nomor sudah dicek.', 'success');
+  gsr('waValidate', [n], function (res) { toast(res.success ? n.length + ' nomor dicek.' : res.message, res.success ? 'success' : 'error'); if (res.success) aud_(); });
+}
+function buatBlast_(ev) {
+  ev.preventDefault();
+  const f = ev.target, d = AppState.blastAud;
+  const peserta = d.rows.filter(function (r) { return r.valid && !r.opt_out && !r.ganda && r.status_wa !== 'Tidak Terdaftar'; }).map(function (r) { return { nama: r.nama, hp: r.hp }; });
+  if (!peserta.length) return toast('Tidak ada penerima yang valid.', 'error'), false;
+  if (!confirm('Kirim ke ' + peserta.length + ' penerima, per ' + f.batch.value + ' pesan?')) return false;
+  const btn = document.getElementById('blast-btn'); setBtnLoading(btn, true, 'Membuat…', '');
+  gsr('waBlastCreate', [f.judul.value, f.pesan.value, Number(f.batch.value), f.jeda.value, peserta], function (res) {
+    setBtnLoading(btn, false, '', iconFor('campaign') + ' Buat Blast');
+    if (!res.success) return toast(res.message, 'error');
+    toast('Blast dibuat: ' + res.data.total + ' penerima.', 'success'); f.reset(); muatBlastList_();
+  }, function (e) { setBtnLoading(btn, false, '', iconFor('campaign') + ' Buat Blast'); adminFail(e); });
+  return false;
+}
+function muatBlastList_() {
+  gsr('waBlastList', [], function (res) {
+    const el = document.getElementById('blast-list'); if (!el) return;
+    if (!res.success) return toast(res.message, 'error');
+    el.innerHTML = res.data.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Judul</th><th>Progres</th><th>Status</th><th>Aksi</th></tr></thead><tbody>' + res.data.map(function (b) {
+      const aktif = b.status === 'Berjalan';
+      return '<tr><td><b>' + escapeHtml(b.judul) + '</b><div class="t-body-sm text-muted">' + escapeHtml(String(b.dibuat).slice(0, 16)) + ' · batch ' + b.ukuran_batch + '</div></td><td style="min-width:160px;">' + progress_(b.persen) +
+        '<div class="t-body-sm">' + b.terkirim + ' terkirim · ' + b.gagal + ' gagal · ' + b.sisa + ' sisa</div></td><td>' + badgeKirim_(b.status) + '</td><td>' +
+        (aktif ? '<button class="btn btn-primary btn-sm" onclick="prosesBlast_(\'' + b.id + '\')">' + iconFor('send') + ' Kirim batch</button> <button class="btn btn-secondary btn-sm" onclick="stopBlast_(\'' + b.id + '\')">' + iconFor('stop') + '</button>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div><div class="t-body-sm text-muted">Sisa pesan juga dikirim otomatis oleh pengatur waktu (trigger) tiap menit.</div>' : emptyStateHtml('campaign', 'Belum ada blast.');
+  });
+}
+function prosesBlast_(id) { gsr('waBlastProcess', [id], function (res) { toast(res.success ? res.data.terkirim + '/' + res.data.total + ' terkirim' : res.message, res.success ? 'success' : 'error'); muatBlastList_(); }); }
+function stopBlast_(id) { if (confirm('Hentikan blast ini? Sisa pesan dibatalkan.')) gsr('waBlastStop', [id], function (res) { toast(res.message || 'Dihentikan.', 'success'); muatBlastList_(); }); }
+
+// ---------------- CRM ----------------
+AppState.crm = { f: { per: 25, halaman: 1 }, pilih: {} };
+function loadAdminCrm() {
+  adminEl_().innerHTML = '<h2 class="t-headline-sm">Kontak CRM</h2><div id="crm-kpi"></div><div id="crm-bar"></div><div id="crm-list"></div>';
+  gsr('crmSync', [], function () {
+    gsr('crmStats', [], function (res) {
+      if (!res.success) return toast(res.message, 'error');
+      const s = res.data, K = function (n, l) { return '<div class="kpi-card"><div class="num">' + n + '</div><div class="lbl">' + l + '</div></div>'; };
+      document.getElementById('crm-kpi').innerHTML = '<div class="kpi-grid">' + K(s.total, 'Kontak') + K(s.waValid, 'WA valid') + K(s.emailValid, 'Email valid') + K(s.duplikat, 'Duplikat') + '</div>';
+    });
+    crmCari_();
+  });
+}
+function crmCari_(keepPage) {
+  const F = AppState.crm.f;
+  const g = function (id) { const e = document.getElementById(id); return e ? e.value : ''; };
+  if (document.getElementById('crm-q')) { F.cari = g('crm-q'); F.segmen = g('crm-seg'); F.statusWA = g('crm-swa'); F.duplikat = g('crm-dup') === '1'; F.optOut = g('crm-opt'); if (!keepPage) F.halaman = 1; }
+  gsr('crmList', [F], function (res) {
+    if (!res.success) return toast(res.message, 'error');
+    const d = res.data, segs = Object.keys(d.facet.segmen);
+    const bar = '<div class="toolbar mb-lg">' +
+      '<input type="text" id="crm-q" placeholder="Cari nama / email / nomor" value="' + escapeHtml(F.cari || '') + '" onchange="crmCari_()"> ' +
+      '<select id="crm-seg" onchange="crmCari_()">' + opt_('', 'Semua segmen', F.segmen) + segs.map(function (s) { return opt_(s, s + ' (' + d.facet.segmen[s] + ')', F.segmen); }).join('') + '</select> ' +
+      '<select id="crm-swa" onchange="crmCari_()">' + opt_('', 'Semua status WA', F.statusWA) + opt_('Terdaftar', 'Terdaftar', F.statusWA) + opt_('Tidak Terdaftar', 'Tidak terdaftar', F.statusWA) + opt_('__belum', 'Belum dicek', F.statusWA) + '</select> ' +
+      '<select id="crm-dup" onchange="crmCari_()">' + opt_('', 'Semua', F.duplikat ? '1' : '') + opt_('1', 'Hanya duplikat', F.duplikat ? '1' : '') + '</select> ' +
+      '<select id="crm-opt" onchange="crmCari_()">' + opt_('', 'Opt-out: semua', F.optOut) + opt_('YA', 'Hanya opt-out', F.optOut) + '</select></div>' +
+      '<div class="toolbar mb-lg"><button class="btn btn-secondary btn-sm" onclick="crmForm_()">' + iconFor('person_add') + ' Tambah / Edit</button> ' +
+      '<button class="btn btn-secondary btn-sm" onclick="crmImportCsv_()">' + iconFor('upload') + ' Impor CSV</button> ' +
+      '<button class="btn btn-secondary btn-sm" onclick="crmExport_()">' + iconFor('download') + ' Ekspor CSV</button> ' +
+      '<button class="btn btn-secondary btn-sm" onclick="crmBulk_(\'tag\')">Beri tag</button> <button class="btn btn-secondary btn-sm" onclick="crmBulk_(\'untag\')">Hapus tag</button> ' +
+      '<button class="btn btn-secondary btn-sm" onclick="crmBulk_(\'optout\')">Opt-out</button> <button class="btn btn-secondary btn-sm" onclick="crmBulk_(\'optin\')">Opt-in</button> ' +
+      '<button class="btn btn-secondary btn-sm" onclick="crmGabung_()">' + iconFor('merge') + ' Gabungkan</button></div>';
+    document.getElementById('crm-bar').innerHTML = bar;
+    const hal = d.halaman, maks = Math.max(1, Math.ceil(d.total / d.per));
+    document.getElementById('crm-list').innerHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th></th><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Segmen</th><th>Tag</th><th></th></tr></thead><tbody>' +
+      (d.rows.length ? d.rows.map(function (k) {
+        return '<tr><td><input type="checkbox" ' + (AppState.crm.pilih[k.id] ? 'checked ' : '') + 'onchange="AppState.crm.pilih[\'' + k.id + '\']=this.checked"></td><td><b>' + escapeHtml(k.nama || '-') + '</b>' + (k.opt_out ? ' <span class="badge badge-Dibatalkan">opt-out</span>' : '') + (k.duplikat ? ' <span class="badge badge-Dibahas">duplikat</span>' : '') + '</td><td>' + escapeHtml(k.email) + '</td><td>' + escapeHtml(k.no_wa) +
+          (k.status_wa ? '<div class="t-body-sm text-muted">' + escapeHtml(k.status_wa) + '</div>' : '') + '</td><td>' + escapeHtml(k.segmen) + '</td><td class="t-body-sm">' + escapeHtml(k.tag) + '</td><td><button class="btn btn-secondary btn-sm" onclick="crmDetail_(\'' + k.id + '\')">' + iconFor('visibility') + '</button></td></tr>';
+      }).join('') : '<tr><td colspan="7">' + emptyStateHtml('contacts', 'Belum ada kontak.') + '</td></tr>') + '</tbody></table></div>' +
+      '<div class="toolbar mt-lg"><button class="btn btn-secondary btn-sm" ' + (hal <= 1 ? 'disabled' : '') + ' onclick="AppState.crm.f.halaman=' + (hal - 1) + ';crmCari_(true)">&laquo;</button> Hal ' + hal + ' / ' + maks + ' (' + d.total + ' kontak) <button class="btn btn-secondary btn-sm" ' + (hal >= maks ? 'disabled' : '') + ' onclick="AppState.crm.f.halaman=' + (hal + 1) + ';crmCari_(true)">&raquo;</button></div>';
+  });
+}
+function pilihIds_() { return Object.keys(AppState.crm.pilih).filter(function (k) { return AppState.crm.pilih[k]; }); }
+function crmBulk_(aksi) {
+  const ids = pilihIds_(); if (!ids.length) return toast('Centang kontak dulu.', 'error');
+  let nilai = '';
+  if (aksi === 'tag' || aksi === 'untag') { nilai = prompt('Nama tag:'); if (!nilai) return; }
+  gsr('crmBulk', [ids, aksi, nilai], function (res) { toast(res.message, res.success ? 'success' : 'error'); AppState.crm.pilih = {}; crmCari_(true); });
+}
+function crmGabung_() {
+  const ids = pilihIds_(); if (ids.length < 2) return toast('Centang minimal 2 kontak. Yang pertama dicentang menjadi kontak utama.', 'error');
+  if (!confirm('Gabungkan ' + ids.length + ' kontak ke kontak pertama?')) return;
+  gsr('crmMerge', [ids[0], ids.slice(1)], function (res) { toast(res.message, res.success ? 'success' : 'error'); AppState.crm.pilih = {}; loadAdminCrm(); });
+}
+function crmForm_(k) {
+  k = k || {};
+  const manual = !k.id || k.sumber === 'manual';
+  openModal('<div class="modal-header"><span class="t-title-lg text-navy">' + (k.id ? 'Edit Kontak' : 'Kontak Baru') + '</span><button class="modal-close" onclick="closeModal()">' + iconFor('close') + '</button></div><div class="modal-body">' +
+    '<form onsubmit="return crmSimpan_(event,\'' + escapeHtml(k.id || '') + '\')">' +
+    (manual ? '' : '<div class="t-body-sm text-muted mb-lg">Nama, email, dan nomor berasal dari ' + escapeHtml(k.sumber) + ' dan tidak bisa diubah di sini.</div>') +
+    '<div class="field"><label>Nama</label><input name="nama" value="' + escapeHtml(k.nama || '') + '"' + (manual ? '' : ' disabled') + '></div>' +
+    '<div class="field"><label>Email</label><input name="email" value="' + escapeHtml(k.email || '') + '"' + (manual ? '' : ' disabled') + '></div>' +
+    '<div class="field"><label>WhatsApp</label><input name="no_wa" value="' + escapeHtml(k.no_wa || '') + '"' + (manual ? '' : ' disabled') + '></div>' +
+    '<div class="field"><label>Tag (pisahkan koma)</label><input name="tag" value="' + escapeHtml(k.tag || '') + '"></div>' +
+    '<div class="field"><label>Catatan</label><textarea name="catatan">' + escapeHtml(k.catatan || '') + '</textarea></div>' +
+    '<label class="chk"><input type="checkbox" name="opt_out"' + (k.opt_out ? ' checked' : '') + '> Opt-out (jangan kirim blast)</label>' +
+    '<button type="submit" class="btn btn-primary btn-block mt-lg">' + iconFor('save') + ' Simpan</button></form></div>');
+}
+function crmSimpan_(ev, id) {
+  ev.preventDefault(); const f = ev.target;
+  gsr('crmSave', [{ id: id, nama: f.nama.value, email: f.email.value, no_wa: f.no_wa.value, tag: f.tag.value, catatan: f.catatan.value, opt_out: f.opt_out.checked }], function (res) {
+    toast(res.message || (res.success ? 'Tersimpan.' : 'Gagal.'), res.success ? 'success' : 'error'); if (res.success) { closeModal(); crmCari_(true); }
+  });
+  return false;
+}
+function crmDetail_(id) {
+  gsr('crmDetail', [id], function (res) {
+    if (!res.success) return toast(res.message, 'error');
+    const k = res.data.kontak;
+    window._crmK = k;
+    openModal('<div class="modal-header"><span class="t-title-lg text-navy">' + escapeHtml(k.nama || 'Kontak') + '</span><button class="modal-close" onclick="closeModal()">' + iconFor('close') + '</button></div><div class="modal-body">' +
+      '<div class="t-body-sm mb-lg">' + escapeHtml(k.email || '-') + ' · ' + escapeHtml(k.no_wa || '-') + ' · ' + escapeHtml(k.segmen) + ' · ' + k.jumlah_pesan + ' pesan terkirim</div>' +
+      '<button class="btn btn-secondary btn-sm" onclick="crmForm_(window._crmK)">' + iconFor('edit') + ' Edit</button>' +
+      '<form class="mt-lg" onsubmit="return crmCatat_(event,\'' + escapeHtml(k.id) + '\')"><div class="field"><label>Catat interaksi</label><select name="kanal">' + ['Catatan', 'Telepon', 'WA Manual', 'Kunjungan'].map(function (x) { return opt_(x, x, 'Catatan'); }).join('') + '</select></div><div class="field"><textarea name="teks" required maxlength="500"></textarea></div><button class="btn btn-primary btn-sm">Simpan Catatan</button></form>' +
+      '<h4 class="t-title-md mt-lg">Riwayat</h4>' + (res.data.timeline.length ? res.data.timeline.map(function (t) {
+        return '<div class="tl-item"><div class="t-body-sm text-muted">' + escapeHtml(String(t.waktu).slice(0, 16)) + ' · ' + escapeHtml(t.jenis) + (t.kanal ? ' · ' + escapeHtml(t.kanal) : '') + '</div><div>' + escapeHtml(t.teks || '') + '</div></div>';
+      }).join('') : '<div class="text-muted">Belum ada riwayat.</div>') + '</div>');
+  });
+}
+function crmCatat_(ev, id) {
+  ev.preventDefault(); const f = ev.target;
+  gsr('crmInteraksi', [id, f.kanal.value, f.teks.value], function (res) { toast(res.message || 'Dicatat.', res.success ? 'success' : 'error'); if (res.success) crmDetail_(id); });
+  return false;
+}
+function crmImportCsv_() {
+  openModal('<div class="modal-header"><span class="t-title-lg text-navy">Impor Kontak (CSV)</span><button class="modal-close" onclick="closeModal()">' + iconFor('close') + '</button></div><div class="modal-body">' +
+    '<div class="t-body-sm text-muted mb-lg">Kolom yang dikenali: nama, email, wa (atau no_wa/hp), segmen, tag. Baris pertama = judul kolom. Pemisah koma atau titik koma.</div>' +
+    '<input type="file" id="csv-file" accept=".csv,text/csv"><button class="btn btn-primary btn-block mt-lg" onclick="crmKirimCsv_()">' + iconFor('upload') + ' Impor</button></div>');
+}
+function crmKirimCsv_() {
+  const file = document.getElementById('csv-file').files[0]; if (!file) return toast('Pilih berkas CSV.', 'error');
+  const rd = new FileReader();
+  rd.onload = function () {
+    const t = parseCsv_(rd.result); if (t.length < 2) return toast('CSV kosong.', 'error');
+    const h = t[0].map(function (x) { return String(x).trim().toLowerCase(); });
+    const idx = function (a) { for (let i = 0; i < a.length; i++) { const p = h.indexOf(a[i]); if (p > -1) return p; } return -1; };
+    const iN = idx(['nama', 'name']), iE = idx(['email']), iW = idx(['wa', 'no_wa', 'hp', 'whatsapp', 'telepon']), iS = idx(['segmen']), iT = idx(['tag']);
+    const rows = t.slice(1).map(function (r) { return { nama: iN > -1 ? r[iN] : '', email: iE > -1 ? r[iE] : '', wa: iW > -1 ? r[iW] : '', segmen: iS > -1 ? r[iS] : '', tag: iT > -1 ? r[iT] : '' }; });
+    gsr('crmImport', [rows], function (res) { toast(res.message, res.success ? 'success' : 'error'); closeModal(); loadAdminCrm(); });
+  };
+  rd.readAsText(file);
+}
+function crmExport_() {
+  gsr('crmExport', [AppState.crm.f], function (res) {
+    if (!res.success) return toast(res.message, 'error');
+    const cols = ['nama', 'email', 'no_wa', 'segmen', 'tag', 'status_wa', 'opt_out', 'jumlah_pesan', 'terakhir_dihubungi'];
+    dl_('kontak-crm.csv', [cols.join(',')].concat(res.data.map(function (r) { return cols.map(function (c) { return csvEsc_(c === 'no_wa' && r[c] ? '\t' + r[c] : r[c]); }).join(','); })).join('\n'));
+  });
+}
+
+// ---------------- IMPOR DATA (MIGRASI) ----------------
+function loadAdminImport() {
+  adminEl_().innerHTML = '<h2 class="t-headline-sm">Impor Data dari Spreadsheet Lama</h2>' +
+    '<div class="card mb-lg"><div class="t-body-sm text-muted mb-lg">Sumber hanya dibaca, tidak diubah. Kolom dicocokkan lewat NAMA header. Aman diulang (tidak menggandakan). Sandi, token, dan pengaturan notifikasi tidak ikut disalin. Jalankan <b>Pindai</b> dulu untuk melihat hasilnya tanpa menulis apa pun.</div>' +
+    '<div class="field"><label>URL atau ID spreadsheet lama</label><input type="text" id="imp-src" placeholder="https://docs.google.com/spreadsheets/d/…"></div>' +
+    '<label class="chk"><input type="checkbox" id="imp-timpa"> Perbarui baris yang sudah ada (hanya pesanan berstatus Diterima)</label>' +
+    '<div class="mt-lg"><button class="btn btn-secondary" onclick="jalankanImpor_(true)">' + iconFor('search') + ' Pindai (tanpa menulis)</button> <button class="btn btn-primary" onclick="jalankanImpor_(false)">' + iconFor('upload_file') + ' Impor Sekarang</button></div></div>' +
+    '<div id="imp-hasil"></div>';
+}
+function jalankanImpor_(dry) {
+  const src = document.getElementById('imp-src').value.trim(); if (!src) return toast('Isi URL/ID spreadsheet.', 'error');
+  if (!dry && !confirm('Mulai impor data ke situs ini?')) return;
+  const el = document.getElementById('imp-hasil'); el.innerHTML = iconFor('hourglass_empty') + ' Memproses…';
+  gsr(dry ? 'importScan' : 'importRun', [src, { timpa: document.getElementById('imp-timpa').checked }], function (res) {
+    if (!res.success) { el.innerHTML = '<div class="card" style="border-color:var(--color-error);">' + escapeHtml(res.message) + '</div>'; return; }
+    const L = res.data.laporan;
+    el.innerHTML = '<div class="card"><div class="t-title-md mb-lg">' + (dry ? 'Hasil pindai (belum ada data ditulis)' : 'Impor selesai') + ' — ' + escapeHtml(res.data.sumber.nama || '') + '</div>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Sheet</th><th>Di sumber</th><th>Ditambah</th><th>Diperbarui</th><th>Dilewati</th><th>Catatan</th></tr></thead><tbody>' +
+      Object.keys(L).map(function (k) { const r = L[k]; return '<tr><td>' + escapeHtml(k) + '</td><td>' + (r.sumber || 0) + '</td><td>' + (r.ditambah || 0) + '</td><td>' + (r.diperbarui || 0) + '</td><td>' + (r.dilewati || 0) + '</td><td class="t-body-sm">' + escapeHtml(r.catatan || '') + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' + ((res.data.peringatan || []).length ? '<div class="t-body-sm mt-lg">' + res.data.peringatan.map(escapeHtml).join('<br>') + '</div>' : '') + '</div>';
+    if (!dry) refreshInitialDataSilently();
+  });
 }

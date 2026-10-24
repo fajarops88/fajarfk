@@ -533,3 +533,13 @@ table.data-table tr:hover td { background: var(--canvas); }
 .agenda-past > summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-bottom: 12px; }
 :root[data-theme="dark"] .agenda-past > summary, :root[data-theme="dark"] .agenda-body .text-navy { color: #d5e3ff; }
 @media (max-width: 640px) { .agenda-item { gap: 12px; padding: 12px; } .agenda-date { flex-basis: 48px; } }
+
+/* ===== Admin: Notifikasi, CRM, Impor ===== */
+.subtabs { display:flex; gap:8px; flex-wrap:wrap; }
+.toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.toolbar input[type=text], .toolbar select { padding:8px 10px; border:1px solid var(--border-trim); border-radius:var(--radius); background:var(--surface-crisp); color:inherit; font:inherit; min-width:0; }
+.chk { display:inline-flex; align-items:center; gap:6px; margin:6px 12px 6px 0; cursor:pointer; }
+.prog { height:8px; background:var(--border-trim); border-radius:99px; overflow:hidden; }
+.prog-bar { height:100%; background:var(--gold, #c9a227); transition:width .4s; }
+.tl-item { padding:8px 0; border-bottom:1px solid var(--border-trim); }
+.mt-lg { margin-top:var(--space-lg); }
